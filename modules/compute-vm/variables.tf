@@ -28,7 +28,6 @@ variable "attached_disk_defaults" {
     replica_zone = null
     type         = "pd-balanced"
   }
-
   validation {
     condition     = var.attached_disk_defaults.mode == "READ_WRITE" || !var.attached_disk_defaults.auto_delete
     error_message = "auto_delete can only be specified on READ_WRITE disks."
@@ -38,8 +37,9 @@ variable "attached_disk_defaults" {
 variable "attached_disks" {
   description = "Additional disks, if options is null defaults will be used in its place. Source type is one of 'image' (zonal disks in vms and template), 'snapshot' (vm), 'existing', and null."
   type = list(object({
-    name              = string
-    device_name       = optional(string)
+    name        = string
+    device_name = optional(string)
+    # TODO: size can be null when source_type is attach
     size              = string
     snapshot_schedule = optional(string)
     source            = optional(string)
@@ -240,15 +240,16 @@ variable "name" {
 variable "network_interfaces" {
   description = "Network interfaces configuration. Use self links for Shared VPC, set addresses to null if not needed."
   type = list(object({
-    nat        = optional(bool, false)
     network    = string
     subnetwork = string
+    alias_ips  = optional(map(string), {})
+    nat        = optional(bool, false)
+    nic_type   = optional(string)
+    stack_type = optional(string)
     addresses = optional(object({
       internal = optional(string)
       external = optional(string)
     }), null)
-    alias_ips = optional(map(string), {})
-    nic_type  = optional(string)
   }))
 }
 
@@ -292,23 +293,13 @@ variable "scratch_disks" {
 }
 
 variable "service_account" {
-  description = "Service account email. Unused if service account is auto-created."
-  type        = string
-  default     = null
-}
-
-variable "service_account_create" {
-  description = "Auto-create service account."
-  type        = bool
-  default     = false
-}
-
-# scopes and scope aliases list
-# https://cloud.google.com/sdk/gcloud/reference/compute/instances/create#--scopes
-variable "service_account_scopes" {
-  description = "Scopes applied to service account."
-  type        = list(string)
-  default     = []
+  description = "Service account email and scopes. If email is null, the default Compute service account will be used unless auto_create is true, in which case a service account will be created. Set the variable to null to avoid attaching a service account."
+  type = object({
+    auto_create = optional(bool, false)
+    email       = optional(string)
+    scopes      = optional(list(string))
+  })
+  default = {}
 }
 
 variable "shielded_config" {
@@ -365,7 +356,7 @@ variable "snapshot_schedules" {
 }
 
 variable "tag_bindings" {
-  description = "Tag bindings for this instance, in key => tag value id format."
+  description = "Tag bindings for this instance, in tag key => tag value format."
   type        = map(string)
   default     = null
 }

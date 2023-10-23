@@ -26,6 +26,13 @@ variable "billing_account" {
   default     = null
 }
 
+variable "compute_metadata" {
+  description = "Optional compute metadata key/values. Only usable if compute API has been enabled."
+  type        = map(string)
+  nullable    = false
+  default     = {}
+}
+
 variable "contacts" {
   description = "List of essential contacts for this resource. Must be in the form EMAIL -> [NOTIFICATION_TYPES]. Valid notification types are ALL, SUSPENSION, SECURITY, TECHNICAL, BILLING, LEGAL, PRODUCT_UPDATES."
   type        = map(list(string))
@@ -44,6 +51,13 @@ variable "default_service_account" {
   description = "Project default service account setting: can be one of `delete`, `deprivilege`, `disable`, or `keep`."
   default     = "keep"
   type        = string
+  validation {
+    condition = (
+      var.default_service_account == null ||
+      contains(["delete", "deprivilege", "disable", "keep"], var.default_service_account)
+    )
+    error_message = "Only `delete`, `deprivilege`, `disable`, or `keep` are supported."
+  }
 }
 
 variable "descriptive_name" {
@@ -60,29 +74,40 @@ variable "group_iam" {
 }
 
 variable "iam" {
-  description = "IAM bindings in {ROLE => [MEMBERS]} format."
+  description = "Authoritative IAM bindings in {ROLE => [MEMBERS]} format."
   type        = map(list(string))
   default     = {}
   nullable    = false
 }
 
-variable "iam_additive" {
-  description = "IAM additive bindings in {ROLE => [MEMBERS]} format."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
+variable "iam_bindings" {
+  description = "Authoritative IAM bindings in {KEY => {role = ROLE, members = [], condition = {}}}. Keys are arbitrary."
+  type = map(object({
+    members = list(string)
+    role    = string
+    condition = optional(object({
+      expression  = string
+      title       = string
+      description = optional(string)
+    }))
+  }))
+  nullable = false
+  default  = {}
 }
 
-variable "iam_additive_members" {
-  description = "IAM additive bindings in {MEMBERS => [ROLE]} format. This might break if members are dynamic values."
-  type        = map(list(string))
-  default     = {}
-}
-
-variable "iam_policy" {
-  description = "IAM authoritative policy in {ROLE => [MEMBERS]} format. Roles and members not explicitly listed will be cleared, use with extreme caution."
-  type        = map(list(string))
-  default     = null
+variable "iam_bindings_additive" {
+  description = "Individual additive IAM bindings. Keys are arbitrary."
+  type = map(object({
+    member = string
+    role   = string
+    condition = optional(object({
+      expression  = string
+      title       = string
+      description = optional(string)
+    }))
+  }))
+  nullable = false
+  default  = {}
 }
 
 variable "labels" {
@@ -95,7 +120,7 @@ variable "labels" {
 variable "lien_reason" {
   description = "If non-empty, creates a project lien with this description."
   type        = string
-  default     = ""
+  default     = null
 }
 
 variable "logging_data_access" {
@@ -131,7 +156,7 @@ variable "logging_sinks" {
     filter               = string
     iam                  = optional(bool, true)
     type                 = string
-    unique_writer        = optional(bool)
+    unique_writer        = optional(bool, true)
   }))
   default  = {}
   nullable = false
@@ -194,27 +219,6 @@ variable "org_policies_data_path" {
   description = "Path containing org policies in YAML format."
   type        = string
   default     = null
-}
-
-variable "oslogin" {
-  description = "Enable OS Login."
-  type        = bool
-  default     = false
-}
-
-variable "oslogin_admins" {
-  description = "List of IAM-style identities that will be granted roles necessary for OS Login administrators."
-  type        = list(string)
-  default     = []
-  nullable    = false
-
-}
-
-variable "oslogin_users" {
-  description = "List of IAM-style identities that will be granted roles necessary for OS Login users."
-  type        = list(string)
-  default     = []
-  nullable    = false
 }
 
 variable "parent" {
@@ -292,12 +296,24 @@ variable "shared_vpc_host_config" {
 
 variable "shared_vpc_service_config" {
   description = "Configures this project as a Shared VPC service project (mutually exclusive with shared_vpc_host_config)."
-  # the list of valid service identities is in service-accounts.tf
+  # the list of valid service identities is in service-agents.yaml
   type = object({
     host_project         = string
-    service_identity_iam = optional(map(list(string)))
+    service_identity_iam = optional(map(list(string)), {})
+    service_iam_grants   = optional(list(string), [])
   })
-  default = null
+  default = {
+    host_project = null
+  }
+  nullable = false
+  validation {
+    condition = var.shared_vpc_service_config.host_project != null || (
+      var.shared_vpc_service_config.host_project == null &&
+      length(var.shared_vpc_service_config.service_iam_grants) == 0 &&
+      length(var.shared_vpc_service_config.service_iam_grants) == 0
+    )
+    error_message = "You need to provide host_project when providing service_identity_iam or service_iam_grants"
+  }
 }
 
 variable "skip_delete" {

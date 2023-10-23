@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2023 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,8 +27,17 @@ resource "google_storage_bucket" "bucket" {
   force_destroy               = var.force_destroy
   uniform_bucket_level_access = var.uniform_bucket_level_access
   labels                      = var.labels
+  default_event_based_hold    = var.default_event_based_hold
+  requester_pays              = var.requester_pays
   versioning {
     enabled = var.versioning
+  }
+
+  dynamic "autoclass" {
+    for_each = var.autoclass == null ? [] : [""]
+    content {
+      enabled = var.autoclass
+    }
   }
 
   dynamic "website" {
@@ -97,13 +106,43 @@ resource "google_storage_bucket" "bucket" {
       }
     }
   }
+
+  dynamic "custom_placement_config" {
+    for_each = var.custom_placement_config == null ? [] : [""]
+
+    content {
+      data_locations = var.custom_placement_config
+    }
+  }
 }
 
-resource "google_storage_bucket_iam_binding" "bindings" {
-  for_each = var.iam
-  bucket   = google_storage_bucket.bucket.name
-  role     = each.key
-  members  = each.value
+resource "google_storage_bucket_object" "objects" {
+  for_each = var.objects_to_upload
+
+  bucket              = google_storage_bucket.bucket.id
+  name                = each.value.name
+  metadata            = each.value.metadata
+  content             = each.value.content
+  source              = each.value.source
+  cache_control       = each.value.cache_control
+  content_disposition = each.value.content_disposition
+  content_encoding    = each.value.content_encoding
+  content_language    = each.value.content_language
+  content_type        = each.value.content_type
+  event_based_hold    = each.value.event_based_hold
+  temporary_hold      = each.value.temporary_hold
+  detect_md5hash      = each.value.detect_md5hash
+  storage_class       = each.value.storage_class
+  kms_key_name        = each.value.kms_key_name
+
+  dynamic "customer_encryption" {
+    for_each = each.value.customer_encryption == null ? [] : [""]
+
+    content {
+      encryption_algorithm = each.value.customer_encryption.encryption_algorithm
+      encryption_key       = each.value.customer_encryption.encryption_key
+    }
+  }
 }
 
 resource "google_storage_notification" "notification" {

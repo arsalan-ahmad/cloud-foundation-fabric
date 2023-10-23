@@ -16,11 +16,13 @@ values:
   module.cloud_run.google_cloud_run_service.service:
     autogenerate_revision_name: false
     location: europe-west1
+    metadata:
+    - {}
     name: hello
-    project: my-project
+    project: project-id
     template:
     - metadata:
-      - labels: null
+      - {}
       spec:
       - containers:
         - args: null
@@ -43,7 +45,7 @@ values:
     location: europe-west1
     members:
     - allUsers
-    project: my-project
+    project: project-id
     role: roles/run.invoker
     service: hello
 

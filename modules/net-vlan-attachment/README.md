@@ -81,7 +81,7 @@ module "example-va" {
     name   = google_compute_router.interconnect-router.name
   }
 }
-# tftest modules=1 resources=3
+# tftest modules=1 resources=2
 ```
 
 ### Dedicated Interconnect - Two VLAN Attachments on a single region (99.9% SLA)
@@ -201,7 +201,7 @@ module "example-va-b" {
     edge_availability_domain = "AVAILABILITY_DOMAIN_2"
   }
 }
-# tftest modules=2 resources=5
+# tftest modules=2 resources=3
 ```
 
 ### Dedicated Interconnect - Four VLAN Attachments on two regions (99.99% SLA)
@@ -352,7 +352,7 @@ resource "google_compute_router" "interconnect-router-ew12" {
   project = "myproject"
   region  = "europe-west12"
   bgp {
-    asn               = 64514
+    asn               = 16550
     advertise_mode    = "CUSTOM"
     advertised_groups = ["ALL_SUBNETS"]
     advertised_ip_ranges {
@@ -431,10 +431,10 @@ module "example-va-b-ew12" {
     edge_availability_domain = "AVAILABILITY_DOMAIN_2"
   }
 }
-# tftest modules=4 resources=10
+# tftest modules=4 resources=6
 ```
 
-### IPSec over Interconnect enabled setup
+### IPSec for Dedicated Interconnect 
 
 Refer to the [HA VPN over Interconnect Blueprint](../../blueprints/networking/ha-vpn-over-interconnect/) for an all-encompassing example.
 
@@ -494,6 +494,47 @@ module "example-va-b" {
 }
 # tftest modules=2 resources=9
 ```
+
+### IPSec for Partner Interconnect 
+
+```hcl
+module "example-va-a" {
+  source      = "./fabric/modules/net-vlan-attachment"
+  project_id  = "myproject"
+  network     = "mynet"
+  region      = "europe-west8"
+  name        = "encrypted-vlan-attachment-a"
+  description = "example-va-a vlan attachment"
+  peer_asn    = "65001"
+  router_config = {
+    create = true
+  }
+  partner_interconnect_config = {
+    edge_availability_domain = "AVAILABILITY_DOMAIN_1"
+  }
+  vpn_gateways_ip_range = "10.255.255.0/29" # Allows for up to 8 tunnels
+}
+
+module "example-va-b" {
+  source      = "./fabric/modules/net-vlan-attachment"
+  project_id  = "myproject"
+  network     = "mynet"
+  region      = "europe-west8"
+  name        = "encrypted-vlan-attachment-b"
+  description = "example-va-b vlan attachment"
+  peer_asn    = "65001"
+  router_config = {
+    create = true
+  }
+  partner_interconnect_config = {
+    edge_availability_domain = "AVAILABILITY_DOMAIN_2"
+  }
+  vpn_gateways_ip_range = "10.255.255.8/29" # Allows for up to 8 tunnels
+}
+# tftest modules=2 resources=6
+```
+
+
 <!-- BEGIN TFDOC -->
 
 ## Variables
@@ -514,5 +555,17 @@ module "example-va-b" {
 | [partner_interconnect_config](variables.tf#L62) | Partner interconnect configuration. | <code title="object&#40;&#123;&#10;  edge_availability_domain &#61; string&#10;&#125;&#41;">object&#40;&#123;&#8230;&#125;&#41;</code> |  | <code>null</code> |
 | [vlan_tag](variables.tf#L110) | The VLAN id to be used for this VLAN attachment. | <code>number</code> |  | <code>null</code> |
 | [vpn_gateways_ip_range](variables.tf#L116) | The IP range (cidr notation) to be used for the GCP VPN gateways. If null IPSec over Interconnect is not enabled. | <code>string</code> |  | <code>null</code> |
+
+## Outputs
+
+| name | description | sensitive |
+|---|---|:---:|
+| [attachment](outputs.tf#L17) | VLAN Attachment resource. |  |
+| [id](outputs.tf#L22) | Fully qualified VLAN attachment id. |  |
+| [name](outputs.tf#L27) | The name of the VLAN attachment created. |  |
+| [pairing_key](outputs.tf#L32) | Opaque identifier of an PARTNER attachment used to initiate provisioning with a selected partner. |  |
+| [router](outputs.tf#L37) | Router resource (only if auto-created). |  |
+| [router_interface](outputs.tf#L42) | Router interface created for the VLAN attachment. |  |
+| [router_name](outputs.tf#L47) | Router name. |  |
 
 <!-- END TFDOC -->

@@ -42,14 +42,36 @@ module "dev-spoke-project" {
       try(local.service_accounts.project-factory-prod, null),
     ])
   }
+  # allow specific service accounts to assign a set of roles
+  iam_bindings = {
+    sa_delegated_grants = {
+      role = "roles/resourcemanager.projectIamAdmin"
+      members = compact([
+        try(local.service_accounts.data-platform-dev, null),
+        try(local.service_accounts.project-factory-dev, null),
+        try(local.service_accounts.project-factory-prod, null),
+        try(local.service_accounts.gke-dev, null),
+      ])
+      condition = {
+        title       = "dev_stage3_sa_delegated_grants"
+        description = "Development host project delegated grants."
+        expression = format(
+          "api.getAttribute('iam.googleapis.com/modifiedGrantsByRole', []).hasOnly([%s])",
+          join(",", formatlist("'%s'", local.stage3_sas_delegated_grants))
+        )
+      }
+    }
+  }
 }
 
 module "dev-spoke-vpc" {
-  source                          = "../../../modules/net-vpc"
-  project_id                      = module.dev-spoke-project.project_id
-  name                            = "dev-spoke-0"
-  mtu                             = 1500
-  data_folder                     = "${var.factories_config.data_dir}/subnets/dev"
+  source     = "../../../modules/net-vpc"
+  project_id = module.dev-spoke-project.project_id
+  name       = "dev-spoke-0"
+  mtu        = 1500
+  factories_config = {
+    subnets_folder = "${var.factories_config.data_dir}/subnets/dev"
+  }
   delete_default_routes_on_create = true
   psa_config                      = try(var.psa_ranges.dev, null)
   # Set explicit routes for googleapis; send everything else to NVAs
@@ -73,30 +95,8 @@ module "dev-spoke-firewall" {
 }
 
 module "peering-dev" {
-  source                     = "../../../modules/net-vpc-peering"
-  prefix                     = "dev-peering-0"
-  local_network              = module.dev-spoke-vpc.self_link
-  peer_network               = module.landing-trusted-vpc.self_link
-  export_local_custom_routes = true
-  export_peer_custom_routes  = true
-}
-
-# Create delegated grants for stage3 service accounts
-resource "google_project_iam_binding" "dev_spoke_project_iam_delegated" {
-  project = module.dev-spoke-project.project_id
-  role    = "roles/resourcemanager.projectIamAdmin"
-  members = compact([
-    try(local.service_accounts.data-platform-dev, null),
-    try(local.service_accounts.project-factory-dev, null),
-    try(local.service_accounts.project-factory-prod, null),
-    try(local.service_accounts.gke-dev, null),
-  ])
-  condition {
-    title       = "dev_stage3_sa_delegated_grants"
-    description = "Development host project delegated grants."
-    expression = format(
-      "api.getAttribute('iam.googleapis.com/modifiedGrantsByRole', []).hasOnly([%s])",
-      join(",", formatlist("'%s'", local.stage3_sas_delegated_grants))
-    )
-  }
+  source        = "../../../modules/net-vpc-peering"
+  prefix        = "dev-peering-0"
+  local_network = module.dev-spoke-vpc.self_link
+  peer_network  = module.landing-trusted-vpc.self_link
 }

@@ -21,20 +21,21 @@ resource "google_compute_global_address" "global" {
 }
 
 resource "google_compute_address" "external" {
+  provider     = google-beta
   for_each     = var.external_addresses
   project      = var.project_id
-  name         = each.key
-  description  = "Terraform managed."
+  name         = coalesce(each.value.name, each.key)
+  description  = each.value.description
   address_type = "EXTERNAL"
-  region       = each.value
-  # labels       = lookup(var.external_address_labels, each.key, {})
+  region       = each.value.region
+  labels       = each.value.labels
 }
 
 resource "google_compute_address" "internal" {
   provider     = google-beta
   for_each     = var.internal_addresses
   project      = var.project_id
-  name         = each.key
+  name         = coalesce(each.value.name, each.key)
   description  = each.value.description
   address_type = "INTERNAL"
   region       = each.value.region
@@ -48,7 +49,7 @@ resource "google_compute_address" "internal" {
 resource "google_compute_global_address" "psc" {
   for_each     = var.psc_addresses
   project      = var.project_id
-  name         = each.key
+  name         = coalesce(each.value.name, each.key)
   description  = each.value.description
   address      = try(each.value.address, null)
   address_type = "INTERNAL"
@@ -60,7 +61,7 @@ resource "google_compute_global_address" "psc" {
 resource "google_compute_global_address" "psa" {
   for_each      = var.psa_addresses
   project       = var.project_id
-  name          = each.key
+  name          = coalesce(each.value.name, each.key)
   description   = each.value.description
   address       = each.value.address
   address_type  = "INTERNAL"
@@ -68,4 +69,17 @@ resource "google_compute_global_address" "psa" {
   prefix_length = each.value.prefix_length
   purpose       = "VPC_PEERING"
   # labels       = lookup(var.internal_address_labels, each.key, {})
+}
+
+resource "google_compute_address" "ipsec_interconnect" {
+  for_each      = var.ipsec_interconnect_addresses
+  project       = var.project_id
+  name          = coalesce(each.value.name, each.key)
+  description   = each.value.description
+  address       = each.value.address
+  address_type  = "INTERNAL"
+  region        = each.value.region
+  network       = each.value.network
+  prefix_length = each.value.prefix_length
+  purpose       = "IPSEC_INTERCONNECT"
 }

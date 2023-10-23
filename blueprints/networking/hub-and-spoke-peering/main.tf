@@ -32,9 +32,11 @@ module "project" {
   source          = "../../../modules/project"
   project_create  = var.project_create != null
   billing_account = try(var.project_create.billing_account, null)
-  oslogin         = try(var.project_create.oslogin, false)
-  parent          = try(var.project_create.parent, null)
-  name            = var.project_id
+  compute_metadata = var.project_create.oslogin != true ? {} : {
+    enable-oslogin = "true"
+  }
+  parent = try(var.project_create.parent, null)
+  name   = var.project_id
   services = [
     "compute.googleapis.com",
     "container.googleapis.com"
@@ -112,11 +114,13 @@ module "nat-spoke-1" {
 }
 
 module "hub-to-spoke-1-peering" {
-  source                     = "../../../modules/net-vpc-peering"
-  local_network              = module.vpc-hub.self_link
-  peer_network               = module.vpc-spoke-1.self_link
-  export_local_custom_routes = true
-  export_peer_custom_routes  = false
+  source        = "../../../modules/net-vpc-peering"
+  local_network = module.vpc-hub.self_link
+  peer_network  = module.vpc-spoke-1.self_link
+  routes_config = {
+    local = { export = true, import = false }
+    peer  = { export = false, import = true }
+  }
 }
 
 ################################################################################
@@ -159,12 +163,14 @@ module "nat-spoke-2" {
 }
 
 module "hub-to-spoke-2-peering" {
-  source                     = "../../../modules/net-vpc-peering"
-  local_network              = module.vpc-hub.self_link
-  peer_network               = module.vpc-spoke-2.self_link
-  export_local_custom_routes = true
-  export_peer_custom_routes  = false
-  depends_on                 = [module.hub-to-spoke-1-peering]
+  source        = "../../../modules/net-vpc-peering"
+  local_network = module.vpc-hub.self_link
+  peer_network  = module.vpc-spoke-2.self_link
+  routes_config = {
+    local = { export = true, import = false }
+    peer  = { export = false, import = true }
+  }
+  depends_on = [module.hub-to-spoke-1-peering]
 }
 
 ################################################################################
@@ -182,10 +188,11 @@ module "vm-hub" {
     nat        = false
     addresses  = null
   }]
-  metadata               = { startup-script = local.vm-startup-script }
-  service_account        = module.service-account-gce.email
-  service_account_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
-  tags                   = ["ssh"]
+  metadata = { startup-script = local.vm-startup-script }
+  service_account = {
+    email = module.service-account-gce.email
+  }
+  tags = ["ssh"]
 }
 
 module "vm-spoke-1" {
@@ -199,10 +206,11 @@ module "vm-spoke-1" {
     nat        = false
     addresses  = null
   }]
-  metadata               = { startup-script = local.vm-startup-script }
-  service_account        = module.service-account-gce.email
-  service_account_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
-  tags                   = ["ssh"]
+  metadata = { startup-script = local.vm-startup-script }
+  service_account = {
+    email = module.service-account-gce.email
+  }
+  tags = ["ssh"]
 }
 
 module "vm-spoke-2" {
@@ -216,10 +224,11 @@ module "vm-spoke-2" {
     nat        = false
     addresses  = null
   }]
-  metadata               = { startup-script = local.vm-startup-script }
-  service_account        = module.service-account-gce.email
-  service_account_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
-  tags                   = ["ssh"]
+  metadata = { startup-script = local.vm-startup-script }
+  service_account = {
+    email = module.service-account-gce.email
+  }
+  tags = ["ssh"]
 }
 
 
@@ -265,6 +274,7 @@ module "cluster-1" {
       import_routes = false
     }
   }
+  deletion_protection = var.deletion_protection
 }
 
 module "cluster-1-nodepool-1" {

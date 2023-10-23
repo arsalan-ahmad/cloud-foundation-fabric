@@ -46,6 +46,9 @@ module "branch-teams-sa" {
   name         = "prod-resman-teams-0"
   display_name = "Terraform resman teams service account."
   prefix       = var.prefix
+  iam_project_roles = {
+    (var.automation.project_id) = ["roles/serviceusage.serviceUsageConsumer"]
+  }
   iam_storage_roles = {
     (var.automation.outputs_bucket) = ["roles/storage.objectAdmin"]
   }
@@ -82,6 +85,8 @@ module "branch-teams-team-folder" {
   group_iam = each.value.group_iam == null ? {} : each.value.group_iam
 }
 
+# TODO: move into team's own IaC project
+
 module "branch-teams-team-sa" {
   source       = "../../../modules/iam-service-account"
   for_each     = var.fast_features.teams ? coalesce(var.team_folders, {}) : {}
@@ -90,10 +95,13 @@ module "branch-teams-team-sa" {
   display_name = "Terraform team ${each.key} service account."
   prefix       = var.prefix
   iam = {
-    "roles/iam.serviceAccountTokenCreator" = (
-      each.value.impersonation_groups == null
-      ? []
-      : [for g in each.value.impersonation_groups : "group:${g}"]
+    "roles/iam.serviceAccountTokenCreator" = concat(
+      compact([try(module.branch-teams-team-sa-cicd[each.key].iam_email, null)]),
+      (
+        each.value.impersonation_groups == null
+        ? []
+        : [for g in each.value.impersonation_groups : "group:${g}"]
+      )
     )
   }
 }

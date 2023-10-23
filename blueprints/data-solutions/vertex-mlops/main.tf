@@ -109,6 +109,7 @@ module "gcs-bucket" {
   storage_class  = "REGIONAL"
   versioning     = false
   encryption_key = var.service_encryption_keys.storage
+  force_destroy  = !var.deletion_protection
 }
 
 # Default bucket for Cloud Build to prevent error: "'us' violates constraint ‘gcp.resourceLocations’"
@@ -116,12 +117,12 @@ module "gcs-bucket" {
 module "gcs-bucket-cloudbuild" {
   source         = "../../../modules/gcs"
   project_id     = module.project.project_id
-  name           = "${var.prefix}_cloudbuild"
-  prefix         = var.prefix
+  name           = "${module.project.project_id}_cloudbuild"
   location       = var.region
   storage_class  = "REGIONAL"
   versioning     = false
   encryption_key = var.service_encryption_keys.storage
+  force_destroy  = !var.deletion_protection
 }
 
 module "bq-dataset" {
@@ -137,10 +138,10 @@ module "vpc-local" {
   count      = local.use_shared_vpc ? 0 : 1
   source     = "../../../modules/net-vpc"
   project_id = module.project.project_id
-  name       = "default"
+  name       = "vertex"
   subnets = [
     {
-      "name" : "default",
+      "name" : "subnet-${var.region}",
       "region" : "${var.region}",
       "ip_cidr_range" : "10.4.0.0/24",
       "secondary_ip_range" : null
